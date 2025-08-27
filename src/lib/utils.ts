@@ -13,26 +13,26 @@ export function cn(...inputs: ClassValue[]) {
 export async function getToken(): Promise<Result<string>> {
   try {
     const token = localStorage.getItem("access_token");
-    
+
     if (!token) {
       return {
         ok: false,
         data: null,
-        error: "No hay token de acceso disponible"
+        error: "No hay token de acceso disponible",
       };
     }
-    
+
     return {
       ok: true,
       data: token,
-      error: null
+      error: null,
     };
   } catch (error) {
     console.error("Error al obtener el token:", error);
     return {
       ok: false,
       data: null,
-      error: "Error al acceder al almacenamiento local"
+      error: "Error al acceder al almacenamiento local",
     };
   }
 }
