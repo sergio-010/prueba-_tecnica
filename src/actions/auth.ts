@@ -1,6 +1,6 @@
 "use client";
 
-import { getToken } from "@/utils";
+import { getToken } from "@/lib/utils";
 import {
   Result,
   ILoginCredentials,
@@ -8,7 +8,7 @@ import {
   IUserProfile,
   IEditProfileData,
   IApiResponse,
-} from "@/interfaces";
+} from "@/types/interfaces";
 
 const URL_BASE = "http://46.202.88.87:8010/usuarios/api";
 

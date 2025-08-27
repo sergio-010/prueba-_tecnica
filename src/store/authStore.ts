@@ -27,6 +27,20 @@ interface LoginCredentials {
   password: string;
 }
 
+interface UpdateProfileData {
+  user?: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+  };
+  telefono?: string;
+  biografia?: string;
+  linkedin?: string;
+  twitter?: string;
+  github?: string;
+  sitio_web?: string;
+}
+
 interface AuthState {
   // Estado
   user: UserProfile | null;
@@ -37,7 +51,7 @@ interface AuthState {
   login: (credentials: LoginCredentials) => Promise<boolean>;
   logout: () => void;
   loadUserProfile: () => Promise<boolean>;
-  updateProfile: (profileData: any) => Promise<boolean>;
+  updateProfile: (profileData: UpdateProfileData) => Promise<boolean>;
   uploadPhoto: (file: File) => Promise<boolean>;
   setLoading: (loading: boolean) => void;
   checkAuthStatus: () => void;
@@ -261,12 +275,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user: data });
       return true;
     } catch (error) {
+      console.error("Error loading user profile:", error);
       return false;
     }
   },
 
   // Actualizar perfil
-  updateProfile: async (profileData: any): Promise<boolean> => {
+  updateProfile: async (profileData: UpdateProfileData): Promise<boolean> => {
     try {
       const token = localStorage.getItem("access_token");
       if (!token) return false;
@@ -301,6 +316,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().loadUserProfile();
       return true;
     } catch (error) {
+      console.error("Error updating profile:", error);
       return false;
     }
   },
@@ -339,6 +355,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await get().loadUserProfile();
       return true;
     } catch (error) {
+      console.error("Error uploading photo:", error);
       return false;
     }
   },

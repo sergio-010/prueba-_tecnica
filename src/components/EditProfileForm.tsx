@@ -124,6 +124,7 @@ export default function EditProfileForm({ onCancel, onSave }: EditProfileFormPro
                 toast.error("Error al actualizar el perfil. Por favor, intenta nuevamente.");
             }
         } catch (error) {
+            console.error("Error updating profile:", error);
             toast.error("Error al actualizar el perfil");
         } finally {
             setIsSubmitting(false);

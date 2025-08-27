@@ -60,6 +60,7 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                 toast.error("Error al subir la foto. Por favor, intenta nuevamente.");
             }
         } catch (error) {
+            console.error("Error uploading photo:", error);
             toast.error("Error al subir la foto");
         } finally {
             setIsUploading(false);
