@@ -89,15 +89,63 @@ npm run start        # Ejecuta la versión de producción
 npm run lint         # Ejecuta ESLint
 ```
 
-## 🔗 API Endpoints
 
-La aplicación consume los siguientes endpoints a través de rutas proxy:
+## 🌐 Endpoints Proxy (Route Handlers)
 
-- `POST /api/usuarios/login/` - Autenticación de usuario
-- `POST /api/usuarios/token/refresh/` - Renovación de tokens
-- `GET /api/usuarios/perfil/` - Obtener perfil de usuario
-- `PUT /api/usuarios/usuario/perfil/` - Actualizar perfil
-- `PATCH /api/usuarios/perfil/foto/` - Subir foto de perfil
+La aplicación expone los siguientes endpoints internos (handlers) que actúan como proxy seguro hacia la API REST externa:
+
+| Método | Ruta interna (Next.js)                | Proxy a API externa                |
+|--------|---------------------------------------|------------------------------------|
+| POST   | `/login`                              | `/usuarios/api/login/`             |
+| GET    | `/perfil`                             | `/usuarios/api/perfil/`            |
+| PUT    | `/usuario/perfil`                     | `/usuarios/api/usuario/perfil/`    |
+| PATCH  | `/perfil/foto`                        | `/usuarios/api/perfil/foto/`       |
+
+**Todas las rutas proxy están implementadas como route handlers en `src/app/(auth)` y `src/app/(usuarios)` siguiendo las convenciones de Next.js 15 App Router.**
+
+> No se utiliza middleware ni `pages/api`. Todo el proxy se realiza mediante handlers en la carpeta `app`.
+
+## ⚡ Ejemplo de Consumo de Endpoints
+
+### Login
+
+```ts
+const res = await fetch('/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username, password })
+})
+```
+
+### Obtener Perfil
+
+```ts
+const res = await fetch('/perfil', {
+  headers: { Authorization: `Bearer ${token}` }
+})
+```
+
+### Editar Perfil
+
+```ts
+const res = await fetch('/usuario/perfil', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+  body: JSON.stringify({ ... })
+})
+```
+
+### Subir Foto de Perfil
+
+```ts
+const formData = new FormData()
+formData.append('foto', file)
+const res = await fetch('/perfil/foto', {
+  method: 'PATCH',
+  headers: { Authorization: `Bearer ${token}` },
+  body: formData
+})
+```
 
 ## 🏗️ Arquitectura
 
