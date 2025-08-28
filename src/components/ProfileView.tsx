@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
+import { uploadPhotoAction } from "@/actions/profile";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -20,7 +21,11 @@ import {
     LogOut,
     ExternalLink,
     CheckCircle,
-    XCircle
+    XCircle,
+    Briefcase,
+    GraduationCap,
+    Star,
+    Award
 } from "lucide-react";
 
 interface ProfileViewProps {
@@ -29,7 +34,8 @@ interface ProfileViewProps {
 
 export default function ProfileView({ onEditProfile }: ProfileViewProps) {
     const [isUploading, setIsUploading] = useState(false);
-    const { user, logout, uploadPhoto } = useAuthStore();
+    const [openingLink, setOpeningLink] = useState<string | null>(null);
+    const { user, logout, loadUserProfile } = useAuthStore();
 
     if (!user) {
         return null;
@@ -53,11 +59,16 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
 
         setIsUploading(true);
         try {
-            const success = await uploadPhoto(file);
-            if (success) {
+            const formData = new FormData();
+            formData.append('foto', file);
+
+            const result = await uploadPhotoAction(formData);
+
+            if (result.ok) {
                 toast.success("Foto de perfil actualizada correctamente");
+                await loadUserProfile(); // Actualizar el perfil después de subir la foto
             } else {
-                toast.error("Error al subir la foto. Por favor, intenta nuevamente.");
+                toast.error(result.error || "Error al subir la foto. Por favor, intenta nuevamente.");
             }
         } catch (error) {
             console.error("Error uploading photo:", error);
@@ -74,26 +85,98 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
         toast.success("Sesión cerrada correctamente");
     };
 
-    const openLink = (url: string) => {
-        if (url && url !== '') {
-            window.open(url, '_blank');
+    const openLink = async (url: string, platform?: string) => {
+        if (!url || url.trim() === '') return;
+
+        setOpeningLink(url);
+
+        let formattedUrl = url.trim();
+
+        if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+            formattedUrl = `https://${formattedUrl}`;
+        }
+
+        try {
+            new URL(formattedUrl);
+            window.open(formattedUrl, '_blank', 'noopener,noreferrer');
+        } catch (error) {
+            // Error silencioso
+        } finally {
+            setTimeout(() => setOpeningLink(null), 500);
         }
     };
 
-    // Generar iniciales para el avatar
+    const getImageUrl = (relativeUrl: string | null | undefined) => {
+        if (!relativeUrl || relativeUrl.trim() === '') return "";
+
+        const cleanUrl = relativeUrl.trim();
+
+        if (cleanUrl.startsWith('http://') || cleanUrl.startsWith('https://')) {
+            return cleanUrl;
+        }
+
+        const baseUrl = 'http://46.202.88.87:8010';
+        const url = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+
+        return `${baseUrl}${url}`;
+    };
+
     const getInitials = () => {
-        const firstName = user.user.first_name || '';
-        const lastName = user.user.last_name || '';
+        if (!user || !user.basic_info) return '';
+        const firstName = user.basic_info.first_name || '';
+        const lastName = user.basic_info.last_name || '';
         return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
     };
 
+    // Validación para mostrar estado de carga o error
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-4xl mx-auto">
+                    <Card>
+                        <CardContent className="p-8 text-center">
+                            <p className="text-gray-500">Cargando perfil de usuario...</p>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        );
+    }
+
+    if (!user.basic_info) {
+        console.error("Datos de usuario recibidos:", user);
+        console.error("Estructura del usuario:", JSON.stringify(user, null, 2));
+
+        return (
+            <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+                <div className="max-w-4xl mx-auto">
+                    <Card>
+                        <CardContent className="p-8 text-center">
+                            <p className="text-red-500">Error: Datos de usuario incompletos</p>
+                            <p className="text-sm text-gray-600 mt-2">
+                                Falta la propiedad basic_info en el perfil del usuario
+                            </p>
+                            <Button onClick={() => loadUserProfile()} className="mt-4 mr-2">
+                                Recargar Perfil
+                            </Button>
+                            <Button onClick={() => window.location.reload()} className="mt-4" variant="outline">
+                                Recargar página
+                            </Button>
+                        </CardContent>
+                    </Card>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-4xl mx-auto space-y-8">
+
                 {/* Header con botones de acción */}
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex justify-between items-center">
                     <h1 className="text-3xl font-bold text-gray-900">Mi Perfil</h1>
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                         <Button onClick={onEditProfile} className="flex items-center gap-2">
                             <Edit className="h-4 w-4" />
                             Editar Perfil
@@ -105,9 +188,11 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                     </div>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
+                {/* Grid principal de cards */}
+                <div className="grid gap-8 md:grid-cols-2">
+
                     {/* Información Personal */}
-                    <Card>
+                    <Card className="h-fit">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <User className="h-5 w-5" />
@@ -116,18 +201,19 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {/* Avatar y foto */}
-                            <div className="flex flex-col items-center space-y-4">
-                                <Avatar className="h-24 w-24">
+                            <div className="flex flex-col items-center space-y-6">
+                                <Avatar className="h-28 w-28">
                                     <AvatarImage
-                                        src={user.foto}
-                                        alt={`${user.user.first_name} ${user.user.last_name}`}
+                                        src={getImageUrl(user.basic_info.foto)}
+                                        alt={`${user.basic_info?.first_name || ''} ${user.basic_info?.last_name || ''}`}
                                     />
-                                    <AvatarFallback className="text-lg">
+                                    <AvatarFallback className="text-xl">
                                         {getInitials()}
                                     </AvatarFallback>
                                 </Avatar>
 
-                                <div className="flex flex-col items-center gap-2">
+                                {/* Controles de foto */}
+                                <div className="flex flex-col items-center gap-3">
                                     <input
                                         type="file"
                                         accept="image/*"
@@ -143,8 +229,17 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                                         disabled={isUploading}
                                         className="flex items-center gap-2"
                                     >
-                                        <Upload className="h-4 w-4" />
-                                        {isUploading ? "Subiendo..." : "Cambiar Foto"}
+                                        {isUploading ? (
+                                            <>
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                                                Subiendo...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Upload className="h-4 w-4" />
+                                                Cambiar Foto
+                                            </>
+                                        )}
                                     </Button>
                                 </div>
                             </div>
@@ -153,15 +248,15 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-sm font-medium text-gray-500">Nombre Completo</label>
-                                    <p className="text-lg font-medium">{user.user.first_name} {user.user.last_name}</p>
+                                    <p className="text-lg font-medium">{user.basic_info.first_name} {user.basic_info.last_name}</p>
                                 </div>
 
-                                {user.user.email && (
+                                {user.basic_info.email && (
                                     <div>
                                         <label className="text-sm font-medium text-gray-500">Correo Electrónico</label>
                                         <p className="flex items-center gap-2">
                                             <Mail className="h-4 w-4" />
-                                            {user.user.email}
+                                            {user.basic_info.email}
                                         </p>
                                     </div>
                                 )}
@@ -170,13 +265,13 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                                     <label className="text-sm font-medium text-gray-500">Teléfono</label>
                                     <p className="flex items-center gap-2">
                                         <Phone className="h-4 w-4" />
-                                        {user.telefono || 'No especificado'}
+                                        {user.basic_info.telefono || 'No especificado'}
                                     </p>
                                 </div>
 
                                 <div>
                                     <label className="text-sm font-medium text-gray-500">Documento</label>
-                                    <p>{user.documento || 'No especificado'}</p>
+                                    <p>{user.basic_info.documento || 'No especificado'}</p>
                                 </div>
 
                                 <div>
@@ -220,16 +315,9 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                             </div>
 
                             <div>
-                                <label className="text-sm font-medium text-gray-500">Tipo de Naturaleza</label>
-                                <Badge variant="outline" className="mt-1">
-                                    {user.tipo_naturaleza}
-                                </Badge>
-                            </div>
-
-                            <div>
                                 <label className="text-sm font-medium text-gray-500">Biografía</label>
                                 <p className="text-gray-700 mt-1">
-                                    {user.biografia || 'No hay biografía disponible'}
+                                    {user.basic_info.biografia || 'No hay biografía disponible'}
                                 </p>
                             </div>
                         </CardContent>
@@ -254,13 +342,18 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                                         <Linkedin className="h-5 w-5 text-blue-600" />
                                         <span className="font-medium">LinkedIn</span>
                                     </div>
-                                    {user.linkedin && user.linkedin !== '' ? (
+                                    {user.basic_info.redes_sociales.linkedin && user.basic_info.redes_sociales.linkedin !== '' ? (
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => openLink(user.linkedin)}
+                                            onClick={() => openLink(user.basic_info.redes_sociales.linkedin, 'LinkedIn')}
+                                            disabled={openingLink === user.basic_info.redes_sociales.linkedin}
                                         >
-                                            <ExternalLink className="h-4 w-4" />
+                                            {openingLink === user.basic_info.redes_sociales.linkedin ? (
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                                            ) : (
+                                                <ExternalLink className="h-4 w-4" />
+                                            )}
                                         </Button>
                                     ) : (
                                         <span className="text-sm text-gray-400">No configurado</span>
@@ -273,13 +366,18 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                                         <Github className="h-5 w-5" />
                                         <span className="font-medium">GitHub</span>
                                     </div>
-                                    {user.github && user.github !== '' ? (
+                                    {user.basic_info.redes_sociales.github && user.basic_info.redes_sociales.github !== '' ? (
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => openLink(user.github)}
+                                            onClick={() => openLink(user.basic_info.redes_sociales.github, 'GitHub')}
+                                            disabled={openingLink === user.basic_info.redes_sociales.github}
                                         >
-                                            <ExternalLink className="h-4 w-4" />
+                                            {openingLink === user.basic_info.redes_sociales.github ? (
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                                            ) : (
+                                                <ExternalLink className="h-4 w-4" />
+                                            )}
                                         </Button>
                                     ) : (
                                         <span className="text-sm text-gray-400">No configurado</span>
@@ -294,13 +392,18 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                                         </svg>
                                         <span className="font-medium">Twitter</span>
                                     </div>
-                                    {user.twitter && user.twitter !== '' ? (
+                                    {user.basic_info.redes_sociales.twitter && user.basic_info.redes_sociales.twitter !== '' ? (
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => openLink(user.twitter)}
+                                            onClick={() => openLink(user.basic_info.redes_sociales.twitter, 'Twitter')}
+                                            disabled={openingLink === user.basic_info.redes_sociales.twitter}
                                         >
-                                            <ExternalLink className="h-4 w-4" />
+                                            {openingLink === user.basic_info.redes_sociales.twitter ? (
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                                            ) : (
+                                                <ExternalLink className="h-4 w-4" />
+                                            )}
                                         </Button>
                                     ) : (
                                         <span className="text-sm text-gray-400">No configurado</span>
@@ -313,13 +416,18 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                                         <Globe className="h-5 w-5" />
                                         <span className="font-medium">Sitio Web</span>
                                     </div>
-                                    {user.sitio_web && user.sitio_web !== '' ? (
+                                    {user.basic_info.redes_sociales.sitio_web && user.basic_info.redes_sociales.sitio_web !== '' ? (
                                         <Button
                                             variant="ghost"
                                             size="sm"
-                                            onClick={() => openLink(user.sitio_web)}
+                                            onClick={() => openLink(user.basic_info.redes_sociales.sitio_web, 'Sitio Web')}
+                                            disabled={openingLink === user.basic_info.redes_sociales.sitio_web}
                                         >
-                                            <ExternalLink className="h-4 w-4" />
+                                            {openingLink === user.basic_info.redes_sociales.sitio_web ? (
+                                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-r-transparent" />
+                                            ) : (
+                                                <ExternalLink className="h-4 w-4" />
+                                            )}
                                         </Button>
                                     ) : (
                                         <span className="text-sm text-gray-400">No configurado</span>
@@ -329,6 +437,169 @@ export default function ProfileView({ onEditProfile }: ProfileViewProps) {
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* Experiencia Laboral */}
+                {user.experiencia_laboral && user.experiencia_laboral.length > 0 && (
+                    <Card className="col-span-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Briefcase className="h-5 w-5" />
+                                Experiencia Laboral
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-6">
+                                {user.experiencia_laboral.map((exp) => (
+                                    <div key={exp.id} className="border-l-2 border-blue-200 pl-4">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h3 className="font-semibold text-lg">{exp.posicion}</h3>
+                                                <p className="text-blue-600 font-medium">{exp.empresa}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-600">
+                                                    {exp.fecha_inicio} - {exp.actualmente ? 'Actual' : exp.fecha_fin}
+                                                </p>
+                                                {exp.actualmente && (
+                                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                                        Trabajando actualmente
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <p className="text-gray-700 mb-3 whitespace-pre-line">{exp.funciones}</p>
+                                        {exp.habilidades && exp.habilidades.length > 0 && (
+                                            <div className="flex flex-wrap gap-2">
+                                                {exp.habilidades.map((hab) => (
+                                                    <span
+                                                        key={hab.id}
+                                                        className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full"
+                                                    >
+                                                        {hab.nombre}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Educación */}
+                {user.educacion && user.educacion.length > 0 && (
+                    <Card className="col-span-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <GraduationCap className="h-5 w-5" />
+                                Educación
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                {user.educacion.map((edu) => (
+                                    <div key={edu.id} className="border-l-2 border-green-200 pl-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <h3 className="font-semibold text-lg">{edu.titulo}</h3>
+                                                <p className="text-green-600 font-medium">{edu.institucion}</p>
+                                                {edu.campo_estudio && (
+                                                    <p className="text-gray-600">{edu.campo_estudio}</p>
+                                                )}
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-sm text-gray-600">
+                                                    {edu.fecha_inicio} - {edu.fecha_fin}
+                                                </p>
+                                                {edu.completado && (
+                                                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+                                                        Completado
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Habilidades */}
+                {user.habilidades && user.habilidades.length > 0 && (
+                    <Card className="col-span-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Star className="h-5 w-5" />
+                                Habilidades
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {user.habilidades.map((hab) => (
+                                    <div key={hab.id} className="p-3 border rounded-lg">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="font-medium">{hab.habilidad__nombre}</h3>
+                                            {hab.esta_verificado && (
+                                                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                                                    Verificado
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-gray-600 mb-1">
+                                            {hab.tiempo_experiencia} años de experiencia
+                                        </p>
+                                        {hab.empresa_adquisicion && (
+                                            <p className="text-xs text-gray-500">
+                                                Adquirido en: {hab.empresa_adquisicion}
+                                            </p>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
+                {/* Portafolio */}
+                {user.portafolio && user.portafolio.length > 0 && (
+                    <Card className="col-span-full">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Award className="h-5 w-5" />
+                                Portafolio
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {user.portafolio.map((item) => (
+                                    <div key={item.id} className="p-4 border rounded-lg">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <h3 className="font-medium">{item.titulo}</h3>
+                                            <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                                                {item.tipo}
+                                            </span>
+                                        </div>
+                                        <p className="text-sm text-gray-700 mb-2">{item.descripcion}</p>
+                                        <p className="text-xs text-gray-500 mb-2">Fecha: {item.fecha}</p>
+                                        {item.url && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => openLink(item.url!)}
+                                                className="flex items-center gap-1"
+                                            >
+                                                <ExternalLink className="h-3 w-3" />
+                                                Ver más
+                                            </Button>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </div>
         </div>
     );

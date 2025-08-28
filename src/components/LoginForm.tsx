@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useAuthStore } from "@/store/authStore";
+import { loginAction } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,44 +15,40 @@ export default function LoginForm() {
         password: "",
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const { login, isLoading } = useAuthStore();
+    const { loadUserProfile, setLoading, isLoading } = useAuthStore();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsSubmitting(true);
+        setLoading(true);
 
         try {
-            const success = await login(credentials);
+            const result = await loginAction(credentials);
 
-            if (success) {
+            if (result.ok && result.data) {
                 toast.success("¡Inicio de sesión exitoso!");
+
+                // Cargar el perfil después del login exitoso
+                await loadUserProfile();
+                toast.success("Perfil cargado correctamente");
             } else {
-                toast.error("Error al iniciar sesión. Verifica la conexión a internet y que el servidor esté disponible.");
+                toast.error(result.error || "Error al iniciar sesión");
             }
         } catch (error) {
-            console.error('Error en handleSubmit:', error);
-            toast.error("Error de conexión. Verifica tu conexión a internet e intenta nuevamente.");
+            console.error("Error during login:", error);
+            toast.error("Error inesperado durante el inicio de sesión");
         } finally {
             setIsSubmitting(false);
+            setLoading(false);
         }
     };
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
-        setCredentials(prev => ({
+        setCredentials((prev) => ({
             ...prev,
             [name]: value,
         }));
-    };
-
-    // Función para cargar credenciales de prueba
-    const loadTestCredentials = () => {
-        setCredentials({
-            username: "carlosandresmoreno",
-            password: "90122856_Hanz",
-        });
-        toast.info("Credenciales de prueba cargadas");
     };
 
     return (
@@ -64,10 +61,6 @@ export default function LoginForm() {
                     <CardDescription className="text-center">
                         Ingresa tus credenciales para acceder a tu perfil
                     </CardDescription>
-                    {/* Indicador de modo demo */}
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                        <strong>Modo Demo:</strong> Si el servidor no responde, se activará automáticamente el modo demostración con datos de prueba.
-                    </div>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
@@ -77,10 +70,10 @@ export default function LoginForm() {
                                 id="username"
                                 name="username"
                                 type="text"
-                                required
                                 value={credentials.username}
-                                onChange={handleChange}
-                                placeholder="Ingresa tu nombre de usuario"
+                                onChange={handleInputChange}
+                                placeholder="Ingresa tu usuario"
+                                required
                                 disabled={isSubmitting || isLoading}
                             />
                         </div>
@@ -91,10 +84,10 @@ export default function LoginForm() {
                                 id="password"
                                 name="password"
                                 type="password"
-                                required
                                 value={credentials.password}
-                                onChange={handleChange}
+                                onChange={handleInputChange}
                                 placeholder="Ingresa tu contraseña"
+                                required
                                 disabled={isSubmitting || isLoading}
                             />
                         </div>
@@ -104,17 +97,24 @@ export default function LoginForm() {
                             className="w-full"
                             disabled={isSubmitting || isLoading}
                         >
-                            {isSubmitting || isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
+                            {isSubmitting || isLoading ? "Iniciando..." : "Iniciar Sesión"}
                         </Button>
 
+                        {/* Credenciales válidas según documentación */}
                         <Button
                             type="button"
                             variant="outline"
-                            className="w-full"
-                            onClick={loadTestCredentials}
+                            className="w-full text-sm"
+                            onClick={() => {
+                                setCredentials({
+                                    username: "carlosandresmoreno",
+                                    password: "90122856_Hanz"
+                                });
+                                toast.info("Credenciales válidas cargadas");
+                            }}
                             disabled={isSubmitting || isLoading}
                         >
-                            Cargar Credenciales de Prueba
+                            📋 Usar Credenciales de la Documentación
                         </Button>
                     </form>
                 </CardContent>

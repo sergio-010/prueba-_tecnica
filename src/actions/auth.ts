@@ -10,13 +10,48 @@ import {
   IApiResponse,
 } from "@/types/interfaces";
 
-const URL_BASE = "http://46.202.88.87:8010/usuarios/api";
+const API_BASE = "";
+
+export async function refreshTokenAction(): Promise<
+  Result<{ access: string }>
+> {
+  try {
+    const refreshToken = localStorage.getItem("refresh_token");
+
+    if (!refreshToken) {
+      throw new Error("No hay refresh token disponible");
+    }
+
+    const response = await fetch(`/token/refresh/`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh: refreshToken }),
+    });
+
+    if (!response.ok) {
+      throw new Error("Error al refrescar el token");
+    }
+
+    const data = await response.json();
+
+    // Actualizar el access token en localStorage
+    localStorage.setItem("access_token", data.access);
+
+    return { ok: true, data, error: null };
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Error al refrescar el token";
+    return { ok: false, data: null, error: errorMessage };
+  }
+}
 
 export async function loginAction(
   credentials: ILoginCredentials
 ): Promise<Result<ILoginResponse>> {
   try {
-    const response = await fetch(`${URL_BASE}/login/`, {
+    const response = await fetch(`/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -26,16 +61,18 @@ export async function loginAction(
 
     if (!response.ok) {
       const errorMessage = await response.text();
-      console.error(`Error en login: ${response.status} - ${errorMessage}`);
       throw new Error(`Error ${response.status}: ${errorMessage}`);
     }
 
     const data: ILoginResponse = await response.json();
-    console.log("Login exitoso:", { access: "***", refresh: "***" });
+
+    localStorage.setItem("access_token", data.data.access);
+    localStorage.setItem("refresh_token", data.data.refresh);
+    localStorage.setItem("user_id", data.data.user_id.toString());
+    localStorage.setItem("user_role", data.data.rol);
 
     return { ok: true, data, error: null };
   } catch (error) {
-    console.error("Error al hacer login:", error);
     const errorMessage =
       error instanceof Error
         ? error.message
@@ -52,7 +89,7 @@ export async function getProfileAction(): Promise<Result<IUserProfile>> {
       throw new Error(error);
     }
 
-    const response = await fetch(`${URL_BASE}/perfil/`, {
+    const response = await fetch(`/perfil`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -93,7 +130,7 @@ export async function updateProfileAction(
       throw new Error(error);
     }
 
-    const response = await fetch(`${URL_BASE}/usuario/perfil/`, {
+    const response = await fetch(`${API_BASE}/usuario/perfil/`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -135,7 +172,7 @@ export async function uploadPhotoAction(
       throw new Error(error);
     }
 
-    const response = await fetch(`${URL_BASE}/perfil/foto/`, {
+    const response = await fetch(`${API_BASE}/perfil/foto/`, {
       method: "PATCH",
       headers: {
         Authorization: `Bearer ${token}`,

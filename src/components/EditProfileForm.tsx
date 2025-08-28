@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/authStore";
+import { updateProfileAction } from "@/actions/profile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,7 +17,7 @@ interface EditProfileFormProps {
 }
 
 export default function EditProfileForm({ onCancel, onSave }: EditProfileFormProps) {
-    const { user, updateProfile } = useAuthStore();
+    const { user, loadUserProfile } = useAuthStore();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const [formData, setFormData] = useState({
@@ -38,21 +39,21 @@ export default function EditProfileForm({ onCancel, onSave }: EditProfileFormPro
 
     // Cargar datos del usuario al montar el componente
     useEffect(() => {
-        if (user) {
+        if (user && user.basic_info) {
             setFormData({
                 user: {
-                    first_name: user.user.first_name || "",
-                    last_name: user.user.last_name || "",
+                    first_name: user.basic_info.first_name || "",
+                    last_name: user.basic_info.last_name || "",
                 },
-                telefono: user.telefono || "",
+                telefono: user.basic_info.telefono || "",
                 tipo_usuario: user.tipo_usuario || "",
-                tipo_naturaleza: user.tipo_naturaleza || "",
-                biografia: user.biografia || "",
-                documento: user.documento || "",
-                linkedin: user.linkedin || "",
-                twitter: user.twitter || "",
-                github: user.github || "",
-                sitio_web: user.sitio_web || "",
+                tipo_naturaleza: "natural", // Valor por defecto ya que no viene en la API
+                biografia: user.basic_info.biografia || "",
+                documento: user.basic_info.documento || "",
+                linkedin: user.basic_info.redes_sociales?.linkedin || "",
+                twitter: user.basic_info.redes_sociales?.twitter || "",
+                github: user.basic_info.redes_sociales?.github || "",
+                sitio_web: user.basic_info.redes_sociales?.sitio_web || "",
                 esta_verificado: user.esta_verificado || false,
             });
         }
@@ -115,13 +116,15 @@ export default function EditProfileForm({ onCancel, onSave }: EditProfileFormPro
         setIsSubmitting(true);
 
         try {
-            const success = await updateProfile(formData);
+            const result = await updateProfileAction(formData);
 
-            if (success) {
+            if (result.ok) {
                 toast.success("Perfil actualizado correctamente");
+                // Recargar el perfil después de actualizar
+                await loadUserProfile();
                 onSave();
             } else {
-                toast.error("Error al actualizar el perfil. Por favor, intenta nuevamente.");
+                toast.error(result.error || "Error al actualizar el perfil");
             }
         } catch (error) {
             console.error("Error updating profile:", error);
@@ -131,7 +134,7 @@ export default function EditProfileForm({ onCancel, onSave }: EditProfileFormPro
         }
     };
 
-    if (!user) {
+    if (!user || !user.basic_info) {
         return null;
     }
 
